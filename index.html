@@ -2,134 +2,174 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>학원 검색 & 폭파 (카카오맵)</title>
+    <title>학원 폭파 시뮬레이터</title>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=3724d98e2b73cfb64d3d3b2df6cf02db&libraries=services"></script>
     <style>
-        body { margin:0; padding:0; font-family:sans-serif; }
-        #map { height:500px; width:100%; }
-        #search-form { padding:10px; text-align:center; display:flex; flex-wrap:wrap; justify-content:center; }
-        #search-input { width:70%; max-width:300px; padding:10px; }
-        #search-btn { padding:10px; margin-left:5px; cursor:pointer; }
-        #results-list { max-height:200px; overflow-y:auto; margin:10px auto; width:90%; max-width:400px; border:1px solid #ccc; display:none; }
-        #results-list ul { list-style:none; padding:0; margin:0; }
-        #results-list li { padding:10px; border-bottom:1px solid #eee; cursor:pointer; }
-        #results-list li:hover { background:#f0f0f0; }
-        #explode-btn { display:none; margin-top:10px; padding:10px; background:red; color:white; border:none; cursor:pointer; width:100%; max-width:200px; }
-        canvas { position:absolute; top:0; left:0; pointer-events:none; z-index:1000; width:100%; height:100%; }
-        @media (max-width:600px) { #map { height:400px; } #search-input, #search-btn { width:90%; margin:5px 0; } }
+        body { font-family: 'Malgun Gothic', sans-serif; text-align: center; background: #222; color: white; margin: 0; overflow-x: hidden; }
+        h1 { margin-top: 30px; color: #ff4757; text-shadow: 2px 2px 4px #000; }
+        
+        #search-container { padding: 30px; }
+        input { padding: 12px; width: 250px; border: none; border-radius: 5px 0 0 5px; outline: none; }
+        .search-btn { padding: 12px 20px; cursor: pointer; background: #ff4757; color: white; border: none; border-radius: 0 5px 5px 0; font-weight: bold; }
+        
+        /* 검색 결과 리스트 스타일 */
+        #result-list { 
+            max-width: 500px; margin: 10px auto; background: #333; 
+            border-radius: 8px; max-height: 200px; overflow-y: auto; 
+            display: none; list-style: none; padding: 0; text-align: left;
+        }
+        #result-list li { 
+            padding: 10px 15px; border-bottom: 1px solid #444; cursor: pointer; transition: 0.2s; 
+        }
+        #result-list li:hover { background: #444; color: #ff4757; }
+        #result-list li .address { font-size: 12px; color: #aaa; display: block; }
+
+        #map-wrapper { 
+            position: relative; width: 90%; max-width: 800px; height: 450px; 
+            margin: 20px auto; display: none; border: 3px solid #ff4757; border-radius: 10px; overflow: hidden;
+        }
+        #map { width: 100%; height: 100%; }
+        
+        #control-panel { display: none; padding: 20px; }
+        #destroy-btn { 
+            background: linear-gradient(to bottom, #ff4757, #cc0000);
+            color: white; border: none; padding: 20px 50px; font-size: 24px; 
+            font-weight: bold; border-radius: 50px; cursor: pointer;
+            box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4); transition: 0.2s;
+        }
+        #destroy-btn:active { transform: scale(0.95); box-shadow: none; }
+
+        /* 폭파 애니메이션 */
+        .explosion {
+            position: absolute; width: 150px; height: 150px;
+            background: url('https://cdn-icons-png.flaticon.com/512/426/426833.png') no-repeat center;
+            background-size: contain; transform: translate(-50%, -50%) scale(0);
+            pointer-events: none; z-index: 10;
+        }
+        @keyframes boom {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+            30% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+        }
+        .animate-boom { animation: boom 0.6s ease-out forwards; }
+
+        @keyframes shake {
+            0% { transform: translate(2px, 2px); }
+            25% { transform: translate(-2px, -2px); }
+            50% { transform: translate(2px, -2px); }
+            75% { transform: translate(-2px, 2px); }
+            100% { transform: translate(0, 0); }
+        }
     </style>
 </head>
 <body>
-    <div id="search-form">
-        <input type="text" id="search-input" placeholder="종암동 영어 학원">
-        <button id="search-btn" onclick="searchAcademy()">검색</button>
-        <button id="explode-btn" onclick="explodeAcademy()">학원 폭파!</button>
-    </div>
-    <div id="results-list"><ul></ul></div>
+
+<h1>🔥 학원 폭파 시뮬레이터</h1>
+
+<div id="search-container">
+    <input type="text" id="keyword" placeholder="학원 이름을 입력하세요 (예: 강남 수학)" onkeypress="if(event.keyCode==13) searchAcademy()">
+    <button class="search-btn" onclick="searchAcademy()">검색</button>
+    <ul id="result-list"></ul>
+</div>
+
+<div id="map-wrapper">
     <div id="map"></div>
-    <canvas id="explosion-canvas"></canvas>
+    <div id="boom-layer"></div>
+</div>
 
-    <!-- 카카오맵 SDK -->
-    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=3724d98e2b73cfb64d3d3b2df6cf02db&libraries=services" async></script>
-    <script>
-        // SDK 로드 대기
-        function checkKakaoLoaded() {
-            if (typeof kakao !== 'undefined' && kakao.maps) {
-                console.log("SDK 로드 성공!");
-                kakao.maps.load(initMap);
-            } else {
-                console.error("SDK 로드 실패 - 1초 후 재시도");
-                setTimeout(checkKakaoLoaded, 1000); // 로드 안 되면 재시도
-            }
+<div id="control-panel">
+    <button id="destroy-btn">💥 이 학원 폭파하기 💥</button>
+    <p id="target-name" style="margin-top: 10px; color: #ffbcbc;"></p>
+</div>
+
+<script>
+let map, marker, ps;
+let selectedPlace = null;
+
+// 지도 초기화
+function initMap() {
+    const container = document.getElementById('map');
+    const options = { center: new kakao.maps.LatLng(37.5668, 126.9786), level: 3 };
+    map = new kakao.maps.Map(container, options);
+    ps = new kakao.maps.services.Places();
+}
+
+// 검색 실행
+function searchAcademy() {
+    const keyword = document.getElementById('keyword').value;
+    if (!keyword.trim()) return alert('학원 이름을 입력하세요!');
+
+    if (!ps) initMap();
+
+    // 카카오 장소 검색 API 호출
+    ps.keywordSearch(keyword, (data, status) => {
+        const listEl = document.getElementById('result-list');
+        listEl.innerHTML = ''; // 이전 검색 결과 초기화
+
+        if (status === kakao.maps.services.Status.OK) {
+            listEl.style.display = 'block';
+            data.forEach((place) => {
+                const li = document.createElement('li');
+                li.innerHTML = `<strong>${place.place_name}</strong><span class="address">${place.address_name}</span>`;
+                li.onclick = () => selectAcademy(place);
+                listEl.appendChild(li);
+            });
+        } else {
+            alert('결과가 없습니다. 검색어를 다르게 입력해보세요.');
+            listEl.style.display = 'none';
         }
+    });
+}
 
-        // 지도 초기화
-        function initMap() {
-            var mapContainer = document.getElementById('map');
-            var mapOption = { center: new kakao.maps.LatLng(37.5665, 126.9780), level: 13 };
-            var map = new kakao.maps.Map(mapContainer, mapOption);
+// 리스트에서 학원 선택 시
+function selectAcademy(place) {
+    selectedPlace = place;
+    document.getElementById('result-list').style.display = 'none';
+    document.getElementById('map-wrapper').style.display = 'block';
+    document.getElementById('control-panel').style.display = 'block';
+    document.getElementById('target-name').innerText = `타겟 설정 완료: ${place.place_name}`;
 
-            var marker; // 현재 마커
-            var academyPosition; // 선택된 위치
+    const moveLatLon = new kakao.maps.LatLng(place.y, place.x);
+    
+    if (marker) marker.setMap(null);
+    marker = new kakao.maps.Marker({ position: moveLatLon });
+    marker.setMap(map);
+    map.setCenter(moveLatLon);
+    map.setLevel(3);
+}
 
-            // 검색 함수
-            window.searchAcademy = function() {
-                var query = document.getElementById('search-input').value;
-                if (!query) return alert("검색어를 입력하세요!");
+// 폭파 버튼 이벤트
+document.getElementById('destroy-btn').addEventListener('click', () => {
+    if (!selectedPlace) return;
 
-                var ps = new kakao.maps.services.Places();
-                ps.keywordSearch(query, function(data, status) {
-                    console.log("검색 응답: ", data); // 디버깅 로그 추가
-                    var resultsList = document.getElementById('results-list');
-                    var ul = resultsList.querySelector('ul');
-                    ul.innerHTML = '';
-                    resultsList.style.display = 'none';
+    const proj = map.getProjection();
+    const point = proj.pointFromCoords(new kakao.maps.LatLng(selectedPlace.y, selectedPlace.x));
 
-                    if (status === kakao.maps.services.Status.OK && data.length > 0) {
-                        resultsList.style.display = 'block';
-                        data.forEach(item => {
-                            var li = document.createElement('li');
-                            li.textContent = item.place_name + " (" + item.address_name + ")";
-                            li.onclick = function() {
-                                selectAcademy(item.y, item.x, item.place_name);
-                                resultsList.style.display = 'none';
-                            };
-                            ul.appendChild(li);
-                        });
-                    } else {
-                        alert("학원을 찾지 못했어요. 더 구체적으로 입력해보세요!");
-                    }
-                });
-            };
+    // 폭파 이펙트 생성
+    const boomLayer = document.getElementById('boom-layer');
+    const boom = document.createElement('div');
+    boom.className = 'explosion animate-boom';
+    boom.style.left = point.x + 'px';
+    boom.style.top = point.y + 'px';
+    boomLayer.appendChild(boom);
 
-            // 학원 선택
-            function selectAcademy(lat, lng, name) {
-                academyPosition = new kakao.maps.LatLng(lat, lng);
-                map.setCenter(academyPosition);
-                
-                if (marker) marker.setMap(null);
-                marker = new kakao.maps.Marker({ position: academyPosition, map: map });
-                new kakao.maps.InfoWindow({ content: '<div style="padding:5px;">' + name + '</div>' }).open(map, marker);
-                
-                document.getElementById('explode-btn').style.display = 'block';
-            }
+    // 진동 효과
+    const mapWrapper = document.getElementById('map-wrapper');
+    mapWrapper.style.animation = 'shake 0.1s infinite';
 
-            // 폭파 효과
-            window.explodeAcademy = function() {
-                var audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-explosion-hit-1699.mp3');
-                audio.play();
+    // 결과 처리
+    setTimeout(() => { 
+        mapWrapper.style.animation = 'none'; 
+        marker.setMap(null); // 마커 삭제
+        alert(`💥 ${selectedPlace.place_name} 이(가) 파괴되었습니다!`);
+    }, 600);
 
-                var canvas = document.getElementById('explosion-canvas');
-                var ctx = canvas.getContext('2d');
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
+    setTimeout(() => boom.remove(), 1000);
+});
 
-                var point = map.getProjection().pointFromCoords(academyPosition);
-                var centerX = point.x;
-                var centerY = point.y + document.getElementById('search-form').offsetHeight;
+// 초기 지도 객체 생성을 위해 호출
+window.onload = initMap;
+</script>
 
-                var fireParticles = [];
-                for (var i = 0; i < 200; i++) {
-                    fireParticles.push({ x: centerX, y: centerY, vx: Math.random()*15-7.5, vy: Math.random()*15-7.5, radius: Math.random()*8+3, color: `hsl(${Math.random()*30+10},100%,50%)`, life: 150 });
-                }
-                var smokeParticles = [];
-                for (var i = 0; i < 100; i++) {
-                    smokeParticles.push({ x: centerX, y: centerY, vx: Math.random()*5-2.5, vy: Math.random()*5-4.5, radius: Math.random()*10+5, color: `rgba(100,100,100,${Math.random()*0.5+0.3})`, life: 200 });
-                }
-
-                function animate() {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    fireParticles.forEach(p => { if (p.life > 0) { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fillStyle = p.color; ctx.fill(); p.x += p.vx; p.y += p.vy; p.vy -= 0.05; p.life -= 2; p.radius *= 0.97; } });
-                    smokeParticles.forEach(p => { if (p.life > 0) { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fillStyle = p.color; ctx.fill(); p.x += p.vx; p.y += p.vy; p.life -= 1; p.radius += 0.1; } });
-                    if (fireParticles.some(p => p.life > 0) || smokeParticles.some(p => p.life > 0)) requestAnimationFrame(animate);
-                    else ctx.clearRect(0, 0, canvas.width, canvas.height);
-                }
-                animate();
-            };
-        }
-
-        // 페이지 로드 후 체크 시작
-        window.addEventListener('load', checkKakaoLoaded);
-    </script>
 </body>
 </html>
