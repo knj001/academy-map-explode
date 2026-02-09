@@ -31,89 +31,97 @@
     <canvas id="explosion-canvas"></canvas>
 
     <!-- 카카오맵 SDK -->
-    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=3724d98e2b73cfb64d3d3b2df6cf02db&libraries=services"></script>
+    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_JS_KEY&libraries=services"></script>
     <script>
-        // 지도 초기화 (카카오맵)
-        var mapContainer = document.getElementById('map');
-        var mapOption = { center: new kakao.maps.LatLng(37.5665, 126.9780), level: 13 };
-        var map = new kakao.maps.Map(mapContainer, mapOption);
+        // SDK 로드 후 실행
+        function initMap() {
+            var mapContainer = document.getElementById('map');
+            var mapOption = { center: new kakao.maps.LatLng(37.5665, 126.9780), level: 13 };
+            var map = new kakao.maps.Map(mapContainer, mapOption);
 
-        var marker; // 현재 마커
-        var academyPosition; // 선택된 위치
+            var marker; // 현재 마커
+            var academyPosition; // 선택된 위치
 
-        // 검색 함수 (카카오 장소 검색 API)
-        function searchAcademy() {
-            var query = document.getElementById('search-input').value;
-            if (!query) return alert("검색어를 입력하세요!");
+            // 검색 함수
+            window.searchAcademy = function() {
+                var query = document.getElementById('search-input').value;
+                if (!query) return alert("검색어를 입력하세요!");
 
-            var ps = new kakao.maps.services.Places();
-            ps.keywordSearch(query, function(data, status) {
-                var resultsList = document.getElementById('results-list');
-                var ul = resultsList.querySelector('ul');
-                ul.innerHTML = '';
-                resultsList.style.display = 'none';
+                var ps = new kakao.maps.services.Places();
+                ps.keywordSearch(query, function(data, status) {
+                    var resultsList = document.getElementById('results-list');
+                    var ul = resultsList.querySelector('ul');
+                    ul.innerHTML = '';
+                    resultsList.style.display = 'none';
 
-                if (status === kakao.maps.services.Status.OK && data.length > 0) {
-                    resultsList.style.display = 'block';
-                    data.forEach(item => {
-                        var li = document.createElement('li');
-                        li.textContent = item.place_name + " (" + item.address_name + ")";
-                        li.onclick = function() {
-                            selectAcademy(item.y, item.x, item.place_name);
-                            resultsList.style.display = 'none';
-                        };
-                        ul.appendChild(li);
-                    });
-                } else {
-                    alert("학원을 찾지 못했어요. 더 구체적으로 입력해보세요!");
+                    if (status === kakao.maps.services.Status.OK && data.length > 0) {
+                        resultsList.style.display = 'block';
+                        data.forEach(item => {
+                            var li = document.createElement('li');
+                            li.textContent = item.place_name + " (" + item.address_name + ")";
+                            li.onclick = function() {
+                                selectAcademy(item.y, item.x, item.place_name);
+                                resultsList.style.display = 'none';
+                            };
+                            ul.appendChild(li);
+                        });
+                    } else {
+                        alert("학원을 찾지 못했어요. 더 구체적으로 입력해보세요!");
+                    }
+                });
+            };
+
+            // 학원 선택
+            function selectAcademy(lat, lng, name) {
+                academyPosition = new kakao.maps.LatLng(lat, lng);
+                map.setCenter(academyPosition);
+                
+                if (marker) marker.setMap(null);
+                marker = new kakao.maps.Marker({ position: academyPosition, map: map });
+                new kakao.maps.InfoWindow({ content: '<div style="padding:5px;">' + name + '</div>' }).open(map, marker);
+                
+                document.getElementById('explode-btn').style.display = 'block';
+            }
+
+            // 폭파 효과
+            window.explodeAcademy = function() {
+                var audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-explosion-hit-1699.mp3');
+                audio.play();
+
+                var canvas = document.getElementById('explosion-canvas');
+                var ctx = canvas.getContext('2d');
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+
+                var point = map.getProjection().pointFromCoords(academyPosition);
+                var centerX = point.x;
+                var centerY = point.y + document.getElementById('search-form').offsetHeight;
+
+                var fireParticles = [];
+                for (var i = 0; i < 200; i++) {
+                    fireParticles.push({ x: centerX, y: centerY, vx: Math.random()*15-7.5, vy: Math.random()*15-7.5, radius: Math.random()*8+3, color: `hsl(${Math.random()*30+10},100%,50%)`, life: 150 });
                 }
-            });
+                var smokeParticles = [];
+                for (var i = 0; i < 100; i++) {
+                    smokeParticles.push({ x: centerX, y: centerY, vx: Math.random()*5-2.5, vy: Math.random()*5-4.5, radius: Math.random()*10+5, color: `rgba(100,100,100,${Math.random()*0.5+0.3})`, life: 200 });
+                }
+
+                function animate() {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    fireParticles.forEach(p => { if (p.life > 0) { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fillStyle = p.color; ctx.fill(); p.x += p.vx; p.y += p.vy; p.vy -= 0.05; p.life -= 2; p.radius *= 0.97; } });
+                    smokeParticles.forEach(p => { if (p.life > 0) { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fillStyle = p.color; ctx.fill(); p.x += p.vx; p.y += p.vy; p.life -= 1; p.radius += 0.1; } });
+                    if (fireParticles.some(p => p.life > 0) || smokeParticles.some(p => p.life > 0)) requestAnimationFrame(animate);
+                    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+                animate();
+            };
         }
 
-        // 학원 선택
-        function selectAcademy(lat, lng, name) {
-            academyPosition = new kakao.maps.LatLng(lat, lng);
-            map.setCenter(academyPosition);
-            
-            if (marker) marker.setMap(null);
-            marker = new kakao.maps.Marker({ position: academyPosition, map: map });
-            new kakao.maps.InfoWindow({ content: '<div style="padding:5px;">' + name + '</div>' }).open(map, marker);
-            
-            document.getElementById('explode-btn').style.display = 'block';
-        }
-
-        // 폭파 효과 (이전 버전 그대로 – 불꽃+연기+사운드)
-        function explodeAcademy() {
-            var audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-explosion-hit-1699.mp3');
-            audio.play();
-
-            var canvas = document.getElementById('explosion-canvas');
-            var ctx = canvas.getContext('2d');
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-
-            // 마커 위치를 화면 좌표로 변환
-            var point = map.getProjection().pointFromCoords(academyPosition);
-            var centerX = point.x;
-            var centerY = point.y + document.getElementById('search-form').offsetHeight;
-
-            // 불꽃 파티클 200개 + 연기 100개 (이전과 동일)
-            var fireParticles = [];
-            for (var i = 0; i < 200; i++) {
-                fireParticles.push({ x: centerX, y: centerY, vx: Math.random()*15-7.5, vy: Math.random()*15-7.5, radius: Math.random()*8+3, color: `hsl(${Math.random()*30+10},100%,50%)`, life: 150 });
-            }
-            var smokeParticles = [];
-            for (var i = 0; i < 100; i++) {
-                smokeParticles.push({ x: centerX, y: centerY, vx: Math.random()*5-2.5, vy: Math.random()*5-4.5, radius: Math.random()*10+5, color: `rgba(100,100,100,${Math.random()*0.5+0.3})`, life: 200 });
-            }
-
-            function animate() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                fireParticles.forEach(p => { if (p.life > 0) { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fillStyle = p.color; ctx.fill(); p.x += p.vx; p.y += p.vy; p.vy -= 0.05; p.life -= 2; p.radius *= 0.97; } });
-                smokeParticles.forEach(p => { if (p.life > 0) { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fillStyle = p.color; ctx.fill(); p.x += p.vx; p.y += p.vy; p.life -= 1; p.radius += 0.1; } });
-                if (fireParticles.some(p => p.life > 0) || smokeParticles.some(p => p.life > 0)) requestAnimationFrame(animate);
-            }
-            animate();
+        // SDK 로드 확인 후 initMap 호출
+        if (typeof kakao !== 'undefined' && kakao.maps) {
+            initMap();
+        } else {
+            document.querySelector('script[src*="dapi.kakao.com"]').onload = initMap;
         }
     </script>
 </body>
