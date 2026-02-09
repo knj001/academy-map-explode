@@ -2,21 +2,41 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- 모바일 최적화 -->
     <title>학원 검색 & 폭파 웹 서비스</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; font-family: sans-serif; }
         #map { height: 500px; width: 100%; position: relative; }
-        #search-form { padding: 10px; text-align: center; }
-        #explode-btn { display: none; margin-top: 10px; padding: 10px; background: red; color: white; border: none; cursor: pointer; }
-        canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1000; } /* Canvas 오버레이 */
+        #search-form { padding: 10px; text-align: center; display: flex; flex-wrap: wrap; justify-content: center; }
+        #search-input { width: 70%; max-width: 300px; padding: 10px; box-sizing: border-box; }
+        #search-btn { padding: 10px; cursor: pointer; margin-left: 5px; }
+        #results-list { max-height: 200px; overflow-y: auto; margin: 10px auto; width: 90%; max-width: 400px; border: 1px solid #ccc; display: none; }
+        #results-list ul { list-style: none; padding: 0; margin: 0; }
+        #results-list li { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
+        #results-list li:hover { background: #f0f0f0; }
+        #explode-btn { display: none; margin-top: 10px; padding: 10px; background: red; color: white; border: none; cursor: pointer; width: 100%; max-width: 200px; }
+        canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1000; width: 100%; height: 100%; }
+        
+        /* 모바일 미디어 쿼리 */
+        @media (max-width: 600px) {
+            #map { height: 400px; } /* 지도 높이 줄임 */
+            #search-form { flex-direction: column; align-items: center; }
+            #search-input { width: 90%; margin-bottom: 10px; }
+            #search-btn { width: 90%; margin-left: 0; }
+            #results-list { width: 90%; }
+            #explode-btn { width: 90%; }
+        }
     </style>
 </head>
 <body>
     <div id="search-form">
-        <input type="text" id="search-input" placeholder="학원 이름이나 주소 입력 (e.g., 서울 학원)" style="width: 300px; padding: 10px;">
+        <input type="text" id="search-input" placeholder="학원 이름이나 주소 입력 (e.g., 종암동 영어 학원)">
         <button id="search-btn" onclick="searchAcademy()">검색</button>
         <button id="explode-btn" onclick="explodeAcademy()">학원 폭파!</button>
+    </div>
+    <div id="results-list">
+        <ul></ul>
     </div>
     <div id="map"></div>
     <canvas id="explosion-canvas"></canvas>
@@ -32,24 +52,28 @@
         var marker; // 학원 마커
         var academyLatLng; // 학원 위치 저장
 
-        // 검색 함수 (Nominatim API 사용)
+        // 검색 함수 (Nominatim API 사용, 여러 결과 가져오기)
         function searchAcademy() {
             var query = document.getElementById('search-input').value;
-            fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&email=your@email.com`) // email은 실제로 바꾸세요
+            fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=10&email=your@email.com`) // email 실제로 바꾸세요
                 .then(response => response.json())
                 .then(data => {
+                    var resultsList = document.getElementById('results-list');
+                    var ul = resultsList.querySelector('ul');
+                    ul.innerHTML = ''; // 기존 리스트 지우기
+                    resultsList.style.display = 'none';
+
                     if (data.length > 0) {
-                        var lat = parseFloat(data[0].lat);
-                        var lon = parseFloat(data[0].lon);
-                        academyLatLng = [lat, lon];
-                        map.setView(academyLatLng, 15);
-                        
-                        if (marker) marker.remove();
-                        marker = L.marker(academyLatLng).addTo(map)
-                            .bindPopup(data[0].display_name)
-                            .openPopup();
-                        
-                        document.getElementById('explode-btn').style.display = 'block';
+                        resultsList.style.display = 'block';
+                        data.forEach((item, index) => {
+                            var li = document.createElement('li');
+                            li.textContent = item.display_name; // 학원 이름/주소 표시
+                            li.onclick = function() {
+                                selectAcademy(item.lat, item.lon, item.display_name);
+                                resultsList.style.display = 'none'; // 선택 후 리스트 숨기기
+                            };
+                            ul.appendChild(li);
+                        });
                     } else {
                         alert('학원을 찾지 못했어요. 더 구체적으로 검색해보세요!');
                     }
@@ -57,36 +81,69 @@
                 .catch(error => console.error('Error:', error));
         }
 
-        // 폭파 효과 (Canvas 애니메이션)
+        // 학원 선택 함수
+        function selectAcademy(lat, lon, name) {
+            academyLatLng = [parseFloat(lat), parseFloat(lon)];
+            map.setView(academyLatLng, 15);
+            
+            if (marker) marker.remove();
+            marker = L.marker(academyLatLng).addTo(map)
+                .bindPopup(name)
+                .openPopup();
+            
+            document.getElementById('explode-btn').style.display = 'block';
+        }
+
+        // 폭파 효과 (업그레이드: 불꽃 + 연기 + 사운드)
         function explodeAcademy() {
+            // 폭발 사운드 재생 (무료 MP3 URL)
+            var audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-explosion-hit-1699.mp3');
+            audio.play();
+
             var canvas = document.getElementById('explosion-canvas');
             var ctx = canvas.getContext('2d');
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
 
-            // 학원 위치를 Canvas 좌표로 변환 (지도 좌표 -> 화면 좌표)
+            // 학원 위치를 Canvas 좌표로 변환
             var point = map.latLngToContainerPoint(academyLatLng);
             var centerX = point.x;
             var centerY = point.y + document.getElementById('search-form').offsetHeight; // 검색 바 높이 보정
 
-            // 파티클 배열 (폭발 입자)
-            var particles = [];
-            for (var i = 0; i < 100; i++) {
-                particles.push({
+            // 불꽃 파티클 (빨강/주황/노랑)
+            var fireParticles = [];
+            for (var i = 0; i < 200; i++) { // 파티클 수 증가
+                fireParticles.push({
                     x: centerX,
                     y: centerY,
-                    vx: Math.random() * 10 - 5, // 랜덤 속도
-                    vy: Math.random() * 10 - 5,
-                    radius: Math.random() * 5 + 2,
-                    color: `hsl(${Math.random() * 360}, 100%, 50%)`, // 랜덤 색상
-                    life: 100 // 수명
+                    vx: Math.random() * 15 - 7.5, // 더 빠른 속도
+                    vy: Math.random() * 15 - 7.5,
+                    radius: Math.random() * 8 + 3, // 더 큰 크기
+                    color: `hsl(${Math.random() * 30 + 10}, 100%, 50%)`, // 빨강~주황 계열
+                    life: 150 // 더 긴 수명
+                });
+            }
+
+            // 연기 파티클 (회색, 투명)
+            var smokeParticles = [];
+            for (var i = 0; i < 100; i++) {
+                smokeParticles.push({
+                    x: centerX,
+                    y: centerY,
+                    vx: Math.random() * 5 - 2.5,
+                    vy: Math.random() * 5 - 2.5 - 2, // 위로 떠오르게
+                    radius: Math.random() * 10 + 5,
+                    color: `rgba(100, 100, 100, ${Math.random() * 0.5 + 0.2})`, // 회색 반투명
+                    life: 200
                 });
             }
 
             // 애니메이션 루프
             function animate() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                particles.forEach(p => {
+
+                // 불꽃 렌더
+                fireParticles.forEach(p => {
                     if (p.life > 0) {
                         ctx.beginPath();
                         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
@@ -95,13 +152,28 @@
                         
                         p.x += p.vx;
                         p.y += p.vy;
-                        p.vy += 0.1; // 중력 효과
-                        p.life -= 2; // 수명 감소
-                        p.radius *= 0.98; // 크기 줄임
+                        p.vy -= 0.05; // 불꽃 위로 솟구치게 (중력 역방향)
+                        p.life -= 2;
+                        p.radius *= 0.97; // 점점 줄임
+                    }
+                });
+
+                // 연기 렌더
+                smokeParticles.forEach(p => {
+                    if (p.life > 0) {
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = p.color;
+                        ctx.fill();
+                        
+                        p.x += p.vx;
+                        p.y += p.vy;
+                        p.life -= 1;
+                        p.radius += 0.1; // 연기 퍼지게
                     }
                 });
                 
-                if (particles.some(p => p.life > 0)) {
+                if (fireParticles.some(p => p.life > 0) || smokeParticles.some(p => p.life > 0)) {
                     requestAnimationFrame(animate);
                 } else {
                     ctx.clearRect(0, 0, canvas.width, canvas.height); // 끝나면 지우기
