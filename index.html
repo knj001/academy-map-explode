@@ -30,10 +30,21 @@
     <canvas id="explosion-canvas"></canvas>
 
     <!-- 카카오맵 SDK -->
-    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=3724d98e2b73cfb64d3d3b2df6cf02db&libraries=services"></script>
+    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=3724d98e2b73cfb64d3d3b2df6cf02db&libraries=services" async></script>
     <script>
-        // SDK 로드 후 실행 (kakao.maps.load 사용)
-        kakao.maps.load(function() {
+        // SDK 로드 대기
+        function checkKakaoLoaded() {
+            if (typeof kakao !== 'undefined' && kakao.maps) {
+                console.log("SDK 로드 성공!");
+                kakao.maps.load(initMap);
+            } else {
+                console.error("SDK 로드 실패 - 1초 후 재시도");
+                setTimeout(checkKakaoLoaded, 1000); // 로드 안 되면 재시도
+            }
+        }
+
+        // 지도 초기화
+        function initMap() {
             var mapContainer = document.getElementById('map');
             var mapOption = { center: new kakao.maps.LatLng(37.5665, 126.9780), level: 13 };
             var map = new kakao.maps.Map(mapContainer, mapOption);
@@ -48,6 +59,7 @@
 
                 var ps = new kakao.maps.services.Places();
                 ps.keywordSearch(query, function(data, status) {
+                    console.log("검색 응답: ", data); // 디버깅 로그 추가
                     var resultsList = document.getElementById('results-list');
                     var ul = resultsList.querySelector('ul');
                     ul.innerHTML = '';
@@ -114,7 +126,10 @@
                 }
                 animate();
             };
-        });
+        }
+
+        // 페이지 로드 후 체크 시작
+        window.addEventListener('load', checkKakaoLoaded);
     </script>
 </body>
 </html>
