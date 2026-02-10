@@ -2,148 +2,182 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>학원 폭파 시뮬레이터</title>
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=3724d98e2b73cfb64d3d3b2df6cf02db&libraries=services&autoload=false"></script>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ACADEMY BUSTER MOBILE</title>
+    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=3724d98e2b73cfb64d3d3b2df6cf02db&libraries=services&autoload=false"></script>
     <style>
-        body { font-family: 'Malgun Gothic', sans-serif; background: #1a1a1a; color: white; text-align: center; margin: 0; }
-        .header { padding: 40px; }
-        .search-box { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
-        input { padding: 12px; width: 300px; border-radius: 5px; border: none; font-size: 16px; }
-        button { padding: 12px 25px; background: #ff4757; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        :root { --red: #ff4757; --black: #121212; --gray: #2f3542; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         
+        body { 
+            margin: 0; padding: 0; background: var(--black); color: white;
+            font-family: -apple-system, sans-serif; overflow-x: hidden;
+        }
+
+        /* 검색 섹션 */
+        .ui-top { padding: 20px; text-align: center; }
+        .search-group { display: flex; width: 100%; gap: 5px; margin-top: 15px; }
+        input { 
+            flex: 1; padding: 15px; border: none; border-radius: 12px; 
+            font-size: 16px; background: #222; color: white;
+        }
+        .btn-main { 
+            padding: 15px 20px; border: none; border-radius: 12px; 
+            background: var(--red); color: white; font-weight: bold; cursor: pointer;
+        }
+
+        /* 결과 리스트 (모바일 대응) */
         #result-list { 
-            max-width: 400px; margin: 0 auto 20px; background: #333; 
-            border-radius: 8px; list-style: none; padding: 0; display: none;
-            max-height: 200px; overflow-y: auto; text-align: left;
+            position: absolute; left: 5%; width: 90%; z-index: 1000;
+            background: var(--gray); border-radius: 12px; padding: 0;
+            list-style: none; display: none; max-height: 40vh; overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
-        #result-list li { padding: 12px; border-bottom: 1px solid #444; cursor: pointer; }
-        #result-list li:hover { background: #444; color: #ff4757; }
+        #result-list li { padding: 15px; border-bottom: 1px solid #3e4451; }
+        #result-list li:active { background: #57606f; }
 
-        #map-container { width: 90%; max-width: 800px; height: 400px; margin: 0 auto; display: none; border: 3px solid #ff4757; position: relative; }
+        /* 지도 영역 - 모바일 가독성 위해 높이 확보 */
+        #map-container { 
+            position: relative; width: 100%; height: 50vh; 
+            display: none; border-top: 2px solid var(--red); border-bottom: 2px solid var(--red);
+        }
         #map { width: 100%; height: 100%; }
-        
-        #destroy-panel { display: none; margin-top: 20px; }
-        #boom-btn { font-size: 24px; padding: 20px 50px; border-radius: 50px; background: linear-gradient(to right, #ff4757, #ff6b81); box-shadow: 0 0 20px rgba(255, 71, 87, 0.5); }
 
-        /* 폭발 애니메이션 */
-        .explosion {
-            position: absolute; width: 150px; height: 150px;
-            background: url('https://cdn-icons-png.flaticon.com/512/426/426833.png') no-repeat center;
+        /* 하단 제어판 */
+        .ui-bottom { padding: 30px 20px; text-align: center; display: none; }
+        #destroy-btn { 
+            width: 100%; max-width: 300px; padding: 25px; 
+            font-size: 24px; font-weight: 900; border: none; border-radius: 50px;
+            background: linear-gradient(45deg, #ff4757, #ff6b81);
+            color: white; box-shadow: 0 10px 20px rgba(255, 71, 87, 0.4);
+        }
+
+        /* 강력한 폭파 애니메이션 */
+        .shockwave {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; opacity: 0; pointer-events: none; z-index: 9999;
+        }
+        @keyframes flash {
+            0% { opacity: 0; }
+            10% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        .explosion-img {
+            position: absolute; width: 300px; height: 300px;
+            background: url('https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/Operation_Upshot-Knothole_-_Badger_001.jpg/640px-Operation_Upshot-Knothole_-_Badger_001.jpg') no-repeat center;
             background-size: contain; transform: translate(-50%, -50%) scale(0);
-            pointer-events: none; z-index: 100;
+            z-index: 999; pointer-events: none; mix-blend-mode: screen;
         }
-        @keyframes boom-ani {
+        @keyframes nuke {
             0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
-            50% { transform: translate(-50%, -50%) scale(1.5); }
-            100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+            20% { transform: translate(-50%, -50%) scale(1.5); filter: brightness(3); }
+            100% { transform: translate(-50%, -50%) scale(4); opacity: 0; }
         }
-        .do-boom { animation: boom-ani 0.6s ease-out forwards; }
+        .shake-screen { animation: shake 0.1s infinite; }
+        @keyframes shake {
+            0% { transform: translate(0,0); }
+            50% { transform: translate(5px, 5px) rotate(1deg); }
+            100% { transform: translate(-5px, -5px) rotate(-1deg); }
+        }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <h1>🔥 학원 폭파 시뮬레이터</h1>
-    <div class="search-box">
-        <input type="text" id="keyword" placeholder="학원 이름을 입력하세요.">
-        <button onclick="searchAcademy()">검색</button>
+<div class="shockwave" id="flash"></div>
+
+<div class="ui-top">
+    <h2 style="color:var(--red); margin:0;">🚀 ACADEMY BUSTER</h2>
+    <div class="search-group">
+        <input type="text" id="keyword" placeholder="학원 이름 입력" onfocus="this.select()">
+        <button class="btn-main" onclick="search()">조준</button>
     </div>
-    <ul id="result-list"></ul>
 </div>
+
+<ul id="result-list"></ul>
 
 <div id="map-container">
     <div id="map"></div>
-    <div id="effect-layer"></div>
 </div>
 
-<div id="destroy-panel">
-    <button id="boom-btn" onclick="explode()">💥 폭파 💥</button>
+<div class="ui-bottom" id="controls">
+    <p id="target-info" style="margin-bottom:15px; font-weight:bold;"></p>
+    <button id="destroy-btn" onclick="nukeIt()">💥 파 괴 💥</button>
 </div>
 
 <script>
-let map, ps, selectedPlace;
+let map, ps, selected;
 
-// 2. 카카오 객체가 로드된 후 실행되도록 kakao.maps.load 사용
-function initMap() {
-    kakao.maps.load(() => {
-        const container = document.getElementById('map');
-        const options = { center: new kakao.maps.LatLng(37.5668, 126.9786), level: 3 };
-        map = new kakao.maps.Map(container, options);
-        ps = new kakao.maps.services.Places();
-        console.log("카카오 지도 로드 완료!");
+// 지도 로드
+kakao.maps.load(() => {
+    map = new kakao.maps.Map(document.getElementById('map'), {
+        center: new kakao.maps.LatLng(37.5668, 126.9786), level: 3
     });
-}
+    ps = new kakao.maps.services.Places();
+});
 
-function searchAcademy() {
-    const word = document.getElementById('keyword').value;
-    if(!word.trim()) return alert("검색어를 입력하세요!");
-
-    // 아직 ps가 안 만들어졌다면 생성
-    if(!ps) { initMap(); return alert("지도를 준비 중입니다. 잠시 후 다시 검색해주세요."); }
-
-    ps.keywordSearch(word, (data, status) => {
+function search() {
+    const k = document.getElementById('keyword').value;
+    if(!k.trim()) return;
+    
+    ps.keywordSearch(k, (data, status) => {
         const list = document.getElementById('result-list');
         list.innerHTML = '';
-        if (status === kakao.maps.services.Status.OK) {
+        if(status === kakao.maps.services.Status.OK) {
             list.style.display = 'block';
             data.forEach(p => {
                 const li = document.createElement('li');
-                li.innerHTML = `<b>${p.place_name}</b><br><small>${p.address_name}</small>`;
-                li.onclick = () => selectAcademy(p);
+                li.innerHTML = `<strong>${p.place_name}</strong><br><small>${p.address_name}</small>`;
+                li.onclick = () => select(p);
                 list.appendChild(li);
             });
-        } else {
-            alert("검색 결과가 없습니다.");
         }
     });
 }
 
-function selectAcademy(place) {
-    selectedPlace = place;
+function select(p) {
+    selected = p;
     document.getElementById('result-list').style.display = 'none';
     document.getElementById('map-container').style.display = 'block';
-    document.getElementById('destroy-panel').style.display = 'block';
-
-    const moveLatLon = new kakao.maps.LatLng(place.y, place.x);
-    map.setCenter(moveLatLon);
+    document.getElementById('controls').style.display = 'block';
+    document.getElementById('target-info').innerText = `🎯 타겟: ${p.place_name}`;
     
-    // 마커 표시
-    new kakao.maps.Marker({ map: map, position: moveLatLon });
+    const loc = new kakao.maps.LatLng(p.y, p.x);
+    map.setCenter(loc);
+    new kakao.maps.Marker({ map, position: loc });
+    map.relayout(); // 모바일에서 깨짐 방지용 리아웃 재정렬
 }
 
-function explode() {
-    if(!selectedPlace) return;
-
+function nukeIt() {
+    if(!selected) return;
+    
     const proj = map.getProjection();
-    const point = proj.pointFromCoords(new kakao.maps.LatLng(selectedPlace.y, selectedPlace.x));
+    const point = proj.pointFromCoords(new kakao.maps.LatLng(selected.y, selected.x));
+    
+    // 1. 화면 섬광
+    const flash = document.getElementById('flash');
+    flash.style.animation = 'flash 0.5s ease-out';
+    
+    // 2. 폭발 이미지
+    const nuke = document.createElement('div');
+    nuke.className = 'explosion-img';
+    nuke.style.left = point.x + 'px';
+    nuke.style.top = point.y + 'px';
+    nuke.style.animation = 'nuke 0.8s ease-out forwards';
+    document.getElementById('map-container').appendChild(nuke);
+    
+    // 3. 진동
+    document.body.classList.add('shake-screen');
+    
+    // 햅틱 피드백 (모바일 지원 브라우저)
+    if (window.navigator.vibrate) window.navigator.vibrate([100, 50, 200]);
 
-    const layer = document.getElementById('effect-layer');
-    const boom = document.createElement('div');
-    boom.className = 'explosion do-boom';
-    boom.style.left = point.x + 'px';
-    boom.style.top = point.y + 'px';
-    layer.appendChild(boom);
-
-    // 지도 진동
-    const container = document.getElementById('map-container');
-    container.style.transition = '0.05s';
-    let count = 0;
-    const interval = setInterval(() => {
-        container.style.transform = `translate(${Math.random()*10-5}px, ${Math.random()*10-5}px)`;
-        if(count++ > 10) {
-            clearInterval(interval);
-            container.style.transform = 'translate(0,0)';
-            alert(`${selectedPlace.place_name} 폭파 완료!`);
-        }
-    }, 50);
-
-    setTimeout(() => boom.remove(), 1000);
+    setTimeout(() => {
+        document.body.classList.remove('shake-screen');
+        flash.style.animation = '';
+        document.getElementById('map-container').style.filter = 'grayscale(1) contrast(2) brightness(0.5)';
+        alert("타겟이 완전히 소멸되었습니다.");
+    }, 800);
 }
-
-// 페이지 로드 시 바로 실행
-window.onload = initMap;
 </script>
-
 </body>
 </html>
