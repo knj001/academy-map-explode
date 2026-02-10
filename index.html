@@ -2,173 +2,167 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>학원 폭파 시뮬레이터</title>
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=3724d98e2b73cfb64d3d3b2df6cf02db&libraries=services"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACADEMY BUSTER 2026</title>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=3724d98e2b73cfb64d3d3b2df6cf02db&libraries=services&autoload=false"></script>
     <style>
-        body { font-family: 'Malgun Gothic', sans-serif; text-align: center; background: #222; color: white; margin: 0; overflow-x: hidden; }
-        h1 { margin-top: 30px; color: #ff4757; text-shadow: 2px 2px 4px #000; }
+        :root { --primary: #ff4757; --dark: #1e1e2e; }
+        body { font-family: 'Pretendard', sans-serif; background: var(--dark); color: white; margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
         
-        #search-container { padding: 30px; }
-        input { padding: 12px; width: 250px; border: none; border-radius: 5px 0 0 5px; outline: none; }
-        .search-btn { padding: 12px 20px; cursor: pointer; background: #ff4757; color: white; border: none; border-radius: 0 5px 5px 0; font-weight: bold; }
-        
-        /* 검색 결과 리스트 스타일 */
-        #result-list { 
-            max-width: 500px; margin: 10px auto; background: #333; 
-            border-radius: 8px; max-height: 200px; overflow-y: auto; 
-            display: none; list-style: none; padding: 0; text-align: left;
-        }
-        #result-list li { 
-            padding: 10px 15px; border-bottom: 1px solid #444; cursor: pointer; transition: 0.2s; 
-        }
-        #result-list li:hover { background: #444; color: #ff4757; }
-        #result-list li .address { font-size: 12px; color: #aaa; display: block; }
+        /* 헤더 & 검색창 */
+        header { margin-top: 40px; text-align: center; }
+        .search-box { margin-top: 20px; display: flex; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+        input { padding: 15px; width: 300px; border: none; border-radius: 8px 0 0 8px; font-size: 16px; }
+        .btn-search { background: var(--primary); border: none; padding: 0 25px; color: white; cursor: pointer; border-radius: 0 8px 8px 0; font-weight: bold; }
 
-        #map-wrapper { 
+        /* 결과 리스트 */
+        #result-list { 
+            width: 380px; background: #2d2d3f; border-radius: 8px; margin-top: 10px; 
+            list-style: none; padding: 0; max-height: 250px; overflow-y: auto; display: none;
+            border: 1px solid #444;
+        }
+        #result-list li { padding: 12px; border-bottom: 1px solid #3d3d4f; cursor: pointer; }
+        #result-list li:hover { background: #3d3d4f; color: var(--primary); }
+        .addr { font-size: 12px; color: #888; display: block; margin-top: 4px; }
+
+        /* 지도 영역 */
+        #map-container { 
             position: relative; width: 90%; max-width: 800px; height: 450px; 
-            margin: 20px auto; display: none; border: 3px solid #ff4757; border-radius: 10px; overflow: hidden;
+            margin-top: 30px; border: 4px solid #333; display: none; overflow: hidden;
+            border-radius: 15px;
         }
         #map { width: 100%; height: 100%; }
-        
-        #control-panel { display: none; padding: 20px; }
+
+        /* 조작 패널 */
+        #control-panel { display: none; margin-top: 20px; text-align: center; }
         #destroy-btn { 
-            background: linear-gradient(to bottom, #ff4757, #cc0000);
-            color: white; border: none; padding: 20px 50px; font-size: 24px; 
-            font-weight: bold; border-radius: 50px; cursor: pointer;
-            box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4); transition: 0.2s;
+            background: linear-gradient(45deg, #ff4757, #ff6b81);
+            color: white; border: none; padding: 20px 60px; font-size: 28px; 
+            font-weight: 900; border-radius: 50px; cursor: pointer;
+            box-shadow: 0 0 20px rgba(255, 71, 87, 0.6);
+            text-transform: uppercase; letter-spacing: 2px;
         }
-        #destroy-btn:active { transform: scale(0.95); box-shadow: none; }
+        #destroy-btn:hover { transform: scale(1.05); filter: brightness(1.2); }
 
         /* 폭파 애니메이션 */
-        .explosion {
-            position: absolute; width: 150px; height: 150px;
-            background: url('https://cdn-icons-png.flaticon.com/512/426/426833.png') no-repeat center;
-            background-size: contain; transform: translate(-50%, -50%) scale(0);
-            pointer-events: none; z-index: 10;
+        .boom {
+            position: absolute; width: 200px; height: 200px;
+            background: url('https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/Operation_Upshot-Knothole_-_Badger_001.jpg/640px-Operation_Upshot-Knothole_-_Badger_001.jpg') no-repeat center;
+            background-size: cover; border-radius: 50%; mix-blend-mode: screen;
+            transform: translate(-50%, -50%) scale(0); z-index: 99; pointer-events: none;
         }
-        @keyframes boom {
+        @keyframes explosion-ani {
             0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
-            30% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; }
+            50% { transform: translate(-50%, -50%) scale(1.5); filter: brightness(2) contrast(1.5); }
             100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
         }
-        .animate-boom { animation: boom 0.6s ease-out forwards; }
-
+        .animate-boom { animation: explosion-ani 0.7s cubic-bezier(0.1, 0.8, 0.3, 1) forwards; }
+        
+        /* 맵 흔들림 */
         @keyframes shake {
-            0% { transform: translate(2px, 2px); }
-            25% { transform: translate(-2px, -2px); }
-            50% { transform: translate(2px, -2px); }
-            75% { transform: translate(-2px, 2px); }
-            100% { transform: translate(0, 0); }
+            0%, 100% { transform: translate(0,0); }
+            10% { transform: translate(-10px, -10px); }
+            30% { transform: translate(10px, 10px); }
+            50% { transform: translate(-10px, 10px); }
+            70% { transform: translate(10px, -10px); }
         }
     </style>
 </head>
 <body>
 
-<h1>🔥 학원 폭파 시뮬레이터</h1>
-
-<div id="search-container">
-    <input type="text" id="keyword" placeholder="학원 이름을 입력하세요 (예: 강남 수학)" onkeypress="if(event.keyCode==13) searchAcademy()">
-    <button class="search-btn" onclick="searchAcademy()">검색</button>
+<header>
+    <h1>🚀 ACADEMY BUSTER</h1>
+    <p>파괴하고 싶은 학원의 이름을 입력하세요.</p>
+    <div class="search-box">
+        <input type="text" id="keyword" placeholder="예: 무지개 수학학원">
+        <button class="btn-search" onclick="searchPlaces()">TARGET LOCK</button>
+    </div>
     <ul id="result-list"></ul>
-</div>
+</header>
 
-<div id="map-wrapper">
+<div id="map-container">
     <div id="map"></div>
-    <div id="boom-layer"></div>
 </div>
 
 <div id="control-panel">
-    <button id="destroy-btn">💥 이 학원 폭파하기 💥</button>
-    <p id="target-name" style="margin-top: 10px; color: #ffbcbc;"></p>
+    <button id="destroy-btn">🔥 DESTROY 🔥</button>
+    <p id="status-msg" style="color: #ff4757; font-weight: bold; margin-top: 15px;"></p>
 </div>
 
 <script>
 let map, marker, ps;
-let selectedPlace = null;
+let selectedPos = null;
 
-// 지도 초기화
-function initMap() {
+// 카카오 라이브러리 로드 대기
+kakao.maps.load(() => {
     const container = document.getElementById('map');
     const options = { center: new kakao.maps.LatLng(37.5668, 126.9786), level: 3 };
     map = new kakao.maps.Map(container, options);
     ps = new kakao.maps.services.Places();
-}
+});
 
-// 검색 실행
-function searchAcademy() {
+function searchPlaces() {
     const keyword = document.getElementById('keyword').value;
-    if (!keyword.trim()) return alert('학원 이름을 입력하세요!');
+    if (!keyword.trim()) return;
 
-    if (!ps) initMap();
-
-    // 카카오 장소 검색 API 호출
     ps.keywordSearch(keyword, (data, status) => {
-        const listEl = document.getElementById('result-list');
-        listEl.innerHTML = ''; // 이전 검색 결과 초기화
-
+        const list = document.getElementById('result-list');
+        list.innerHTML = '';
+        
         if (status === kakao.maps.services.Status.OK) {
-            listEl.style.display = 'block';
-            data.forEach((place) => {
+            list.style.display = 'block';
+            data.forEach(p => {
                 const li = document.createElement('li');
-                li.innerHTML = `<strong>${place.place_name}</strong><span class="address">${place.address_name}</span>`;
-                li.onclick = () => selectAcademy(place);
-                listEl.appendChild(li);
+                li.innerHTML = `<strong>${p.place_name}</strong><span class="addr">${p.address_name}</span>`;
+                li.onclick = () => selectTarget(p);
+                list.appendChild(li);
             });
         } else {
-            alert('결과가 없습니다. 검색어를 다르게 입력해보세요.');
-            listEl.style.display = 'none';
+            alert('타겟을 찾을 수 없습니다.');
         }
     });
 }
 
-// 리스트에서 학원 선택 시
-function selectAcademy(place) {
-    selectedPlace = place;
+function selectTarget(place) {
     document.getElementById('result-list').style.display = 'none';
-    document.getElementById('map-wrapper').style.display = 'block';
+    document.getElementById('map-container').style.display = 'block';
     document.getElementById('control-panel').style.display = 'block';
-    document.getElementById('target-name').innerText = `타겟 설정 완료: ${place.place_name}`;
+    document.getElementById('status-msg').innerText = `TARGET ACQUIRED: ${place.place_name}`;
 
-    const moveLatLon = new kakao.maps.LatLng(place.y, place.x);
+    selectedPos = new kakao.maps.LatLng(place.y, place.x);
     
     if (marker) marker.setMap(null);
-    marker = new kakao.maps.Marker({ position: moveLatLon });
+    marker = new kakao.maps.Marker({ position: selectedPos });
     marker.setMap(map);
-    map.setCenter(moveLatLon);
-    map.setLevel(3);
+    map.setCenter(selectedPos);
 }
 
-// 폭파 버튼 이벤트
-document.getElementById('destroy-btn').addEventListener('click', () => {
-    if (!selectedPlace) return;
+document.getElementById('destroy-btn').onclick = function() {
+    if (!selectedPos) return;
 
+    // 마커 좌표를 화면 좌표로 변환
     const proj = map.getProjection();
-    const point = proj.pointFromCoords(new kakao.maps.LatLng(selectedPlace.y, selectedPlace.x));
+    const point = proj.pointFromCoords(selectedPos);
 
-    // 폭파 이펙트 생성
-    const boomLayer = document.getElementById('boom-layer');
-    const boom = document.createElement('div');
-    boom.className = 'explosion animate-boom';
-    boom.style.left = point.x + 'px';
-    boom.style.top = point.y + 'px';
-    boomLayer.appendChild(boom);
+    // 시각 효과
+    const mapContainer = document.getElementById('map-container');
+    const boomLayer = document.createElement('div');
+    boomLayer.className = 'boom animate-boom';
+    boomLayer.style.left = point.x + 'px';
+    boomLayer.style.top = point.y + 'px';
+    mapContainer.appendChild(boomLayer);
 
-    // 진동 효과
-    const mapWrapper = document.getElementById('map-wrapper');
-    mapWrapper.style.animation = 'shake 0.1s infinite';
+    mapContainer.style.animation = 'shake 0.1s infinite';
 
-    // 결과 처리
-    setTimeout(() => { 
-        mapWrapper.style.animation = 'none'; 
-        marker.setMap(null); // 마커 삭제
-        alert(`💥 ${selectedPlace.place_name} 이(가) 파괴되었습니다!`);
-    }, 600);
+    setTimeout(() => {
+        mapContainer.style.animation = 'none';
+        marker.setMap(null); // 학원 삭제
+        document.getElementById('status-msg').innerText = "MISSION ACCOMPLISHED. TARGET DESTROYED.";
+        alert("폭파 완료! 스트레스가 풀리셨길 바랍니다.");
+    }, 700);
 
-    setTimeout(() => boom.remove(), 1000);
-});
-
-// 초기 지도 객체 생성을 위해 호출
-window.onload = initMap;
+    setTimeout(() => boomLayer.remove(), 1500);
+};
 </script>
 
 </body>
