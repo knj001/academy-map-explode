@@ -6,71 +6,49 @@
     <title>ACADEMY BUSTER</title>
     <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=3724d98e2b73cfb64d3d3b2df6cf02db&libraries=services&autoload=false"></script>
     <style>
-        :root { --red: #ff4757; --bg: #0a0a0c; }
-        body { margin: 0; background: var(--bg); color: white; font-family: sans-serif; overflow: hidden; }
+        :root { --red: #ff4757; --bg: #0f0f12; }
+        body { margin: 0; background: var(--bg); color: white; font-family: -apple-system, sans-serif; overflow: hidden; touch-action: manipulation; }
 
-        /* UI 디자인 */
-        .top-nav { padding: 20px; background: #151518; border-bottom: 2px solid #222; }
-        .search-row { display: flex; gap: 10px; margin-top: 10px; }
-        input { flex: 1; padding: 15px; border-radius: 8px; border: 1px solid #333; background: #222; color: white; font-size: 16px; }
-        .btn-search { background: var(--red); border: none; padding: 0 20px; border-radius: 8px; color: white; font-weight: bold; }
+        /* UI 구성 */
+        .top-nav { padding: 20px; background: #1a1a1e; border-bottom: 2px solid #222; z-index: 1001; position: relative; }
+        .search-row { display: flex; gap: 8px; margin-top: 10px; }
+        input { flex: 1; padding: 15px; border-radius: 12px; border: 1px solid #333; background: #222; color: white; font-size: 16px; outline: none; }
+        .btn-search { background: var(--red); border: none; padding: 0 20px; border-radius: 12px; color: white; font-weight: bold; cursor: pointer; }
 
-        /* 결과 목록 */
+        /* 검색 리스트 */
         #result-list { 
-            position: absolute; width: 100%; z-index: 999; background: #151518; 
+            position: absolute; width: 100%; z-index: 1000; background: #1a1a1e; 
             list-style: none; padding: 0; margin: 0; display: none;
-            max-height: 50vh; overflow-y: auto; border-bottom: 1px solid var(--red);
+            max-height: 45vh; overflow-y: auto; border-bottom: 2px solid var(--red);
         }
-        #result-list li { padding: 15px; border-bottom: 1px solid #222; border-left: 4px solid transparent; }
-        #result-list li:active { background: #222; border-left-color: var(--red); }
+        #result-list li { padding: 18px; border-bottom: 1px solid #2a2a2e; }
+        #result-list li:active { background: #333; }
 
-        /* 지도 영역 */
+        /* 지도 섹션 */
         #map-container { width: 100%; height: 50vh; display: none; position: relative; overflow: hidden; background: #000; }
         #map { width: 100%; height: 100%; transition: filter 0.5s; }
 
         /* 하단 제어판 */
-        .bottom-panel { display: none; padding: 30px 20px; text-align: center; }
+        .bottom-panel { display: none; padding: 25px 20px; text-align: center; }
         #nuke-btn { 
-            width: 100%; padding: 25px; font-size: 26px; font-weight: 900; 
-            border-radius: 12px; border: none; background: linear-gradient(to right, #ff4757, #b30000);
-            color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-            box-shadow: 0 0 30px rgba(255, 71, 87, 0.4);
+            width: 100%; max-width: 400px; padding: 20px; font-size: 24px; font-weight: 900; 
+            border-radius: 50px; border: none; background: linear-gradient(45deg, #ff4757, #b30000);
+            color: white; box-shadow: 0 0 25px rgba(255, 71, 87, 0.5); cursor: pointer;
         }
 
-        /* [핵폭발 효과] */
-        #flash {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: white; opacity: 0; pointer-events: none; z-index: 9999;
+        /* [폭발 효과 CSS] */
+        #flash { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; z-index: 9999; }
+        
+        .nuke-gif {
+            position: absolute; width: 350px; height: 350px;
+            transform: translate(-50%, -50%); z-index: 9998;
+            pointer-events: none; display: block;
         }
 
-        /* 1. 이미지 핵구름 */
-        .nuke-image {
-            position: absolute; width: 400px; height: 400px;
-            background: url('https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/Operation_Upshot-Knothole_-_Badger_001.jpg/640px-Operation_Upshot-Knothole_-_Badger_001.jpg') no-repeat center;
-            background-size: contain; transform: translate(-50%, -50%) scale(0);
-            z-index: 9998; pointer-events: none; mix-blend-mode: screen;
-        }
-
-        /* 2. 백업용 CSS 화염 원 (이미지 안 보일 때 대비) */
-        .fire-ball {
-            position: absolute; width: 100px; height: 100px;
-            background: radial-gradient(circle, #fff, #ffae00, #ff4757, transparent);
-            border-radius: 50%; transform: translate(-50%, -50%) scale(0);
-            z-index: 9997; pointer-events: none; opacity: 0.8;
-        }
-
-        @keyframes nuke-ani {
-            0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
-            30% { transform: translate(-50%, -50%) scale(1.5); filter: brightness(2); }
-            100% { transform: translate(-50%, -50%) scale(5); opacity: 0; }
-        }
+        /* 애니메이션 */
         @keyframes flash-ani { 0% { opacity: 0; } 10% { opacity: 1; } 100% { opacity: 0; } }
-        .screen-shake { animation: shake 0.05s infinite; }
-        @keyframes shake { 
-            0% { transform: translate(0,0); } 
-            50% { transform: translate(10px, 10px); } 
-            100% { transform: translate(-10px, -10px); } 
-        }
+        .screen-shake { animation: shake-ani 0.05s infinite; }
+        @keyframes shake-ani { 0% { transform: translate(0,0); } 50% { transform: translate(8px, 8px); } 100% { transform: translate(-8px, -8px); } }
     </style>
 </head>
 <body>
@@ -78,10 +56,10 @@
 <div id="flash"></div>
 
 <div class="top-nav">
-    <h2 style="margin:0; color:var(--red); font-style: italic;">NUCLEAR TARGETING...</h2>
+    <h2 style="margin:0; color:var(--red); font-style: italic; font-size: 20px;">ACADEMY BUSTER v2.0</h2>
     <div class="search-row">
-        <input type="text" id="keyword" placeholder="학원명 입력">
-        <button class="btn-search" onclick="search()">조준</button>
+        <input type="text" id="keyword" placeholder="학원 이름을 입력하세요" onfocus="this.value=''">
+        <button class="btn-search" onclick="doSearch()">조준</button>
     </div>
 </div>
 
@@ -92,14 +70,14 @@
 </div>
 
 <div class="bottom-panel" id="ui-bottom">
-    <p id="target-label" style="font-size: 18px; margin-bottom: 20px; color: #aaa;"></p>
-    <button id="nuke-btn" onclick="fireNuke()">🔥 핵 폭 파 🔥</button>
+    <p id="target-info" style="margin-bottom:15px; color:#ccc; font-weight:bold;"></p>
+    <button id="nuke-btn" onclick="triggerNuke()">💥 핵 폭 파 💥</button>
 </div>
 
 <script>
-let map, ps, marker, currentTarget;
+let map, ps, marker, selectedTarget;
 
-// 초기 로드
+// 1. 카카오 지도 초기 로드 (autoload=false 대응)
 kakao.maps.load(() => {
     map = new kakao.maps.Map(document.getElementById('map'), {
         center: new kakao.maps.LatLng(37.5668, 126.9786), level: 3
@@ -107,80 +85,83 @@ kakao.maps.load(() => {
     ps = new kakao.maps.services.Places();
 });
 
-function search() {
-    const k = document.getElementById('keyword').value;
-    if(!k.trim()) return;
-    ps.keywordSearch(k, (data, status) => {
+// 2. 장소 검색
+function doSearch() {
+    const word = document.getElementById('keyword').value;
+    if(!word.trim()) return;
+
+    ps.keywordSearch(word, (data, status) => {
         const list = document.getElementById('result-list');
         list.innerHTML = '';
-        if(status === kakao.maps.services.Status.OK) {
+        if (status === kakao.maps.services.Status.OK) {
             list.style.display = 'block';
             data.forEach(p => {
                 const li = document.createElement('li');
-                li.innerHTML = `<strong>${p.place_name}</strong><br><small style="color:#666">${p.address_name}</small>`;
-                li.onclick = () => lockOn(p);
+                li.innerHTML = `<strong>${p.place_name}</strong><br><small style="color:#888">${p.address_name}</small>`;
+                li.onclick = () => focusTarget(p);
                 list.appendChild(li);
             });
+        } else {
+            alert("검색 결과가 없습니다.");
         }
     });
 }
 
-function lockOn(p) {
-    currentTarget = p;
+// 3. 타겟 조준 및 중앙 정렬
+function focusTarget(p) {
+    selectedTarget = p;
     document.getElementById('result-list').style.display = 'none';
     document.getElementById('map-container').style.display = 'block';
     document.getElementById('ui-bottom').style.display = 'block';
-    document.getElementById('target-label').innerHTML = `LOCK ON: <span style="color:white">${p.place_name}</span>`;
+    document.getElementById('target-info').innerText = `TARGET LOCKED: ${p.place_name}`;
 
-    const pos = new kakao.maps.LatLng(p.y, p.x);
+    const loc = new kakao.maps.LatLng(p.y, p.x);
     
-    // 중앙 정렬 보정
+    // 모바일 레이아웃 재계산 후 중앙 이동
     map.relayout();
     setTimeout(() => {
-        map.setCenter(pos);
+        map.setCenter(loc);
         if(marker) marker.setMap(null);
-        marker = new kakao.maps.Marker({ map, position: pos });
-    }, 50);
+        marker = new kakao.maps.Marker({ map, position: loc });
+    }, 100);
 }
 
-function fireNuke() {
-    if(!currentTarget) return;
+// 4. 폭파 트리거 (GIF 재생)
+function triggerNuke() {
+    if(!selectedTarget) return;
 
     const proj = map.getProjection();
-    const point = proj.pointFromCoords(new kakao.maps.LatLng(currentTarget.y, currentTarget.x));
+    const point = proj.pointFromCoords(new kakao.maps.LatLng(selectedTarget.y, selectedTarget.x));
 
-    // 1. 번쩍임
-    document.getElementById('flash').style.animation = 'flash-ani 0.5s forwards';
+    // GIF 생성 및 강제 첫 프레임 재생 (?t= 사용)
+    const container = document.getElementById('map-container');
+    const gif = document.createElement('img');
+    gif.src = './nuke.gif?t=' + new Date().getTime(); 
+    gif.className = 'nuke-gif';
+    gif.style.left = point.x + 'px';
+    gif.style.top = point.y + 'px';
+    container.appendChild(gif);
 
-    // 2. CSS 화염구 (이미지 실패 대비)
-    const fire = document.createElement('div');
-    fire.className = 'fire-ball';
-    fire.style.left = point.x + 'px';
-    fire.style.top = point.y + 'px';
-    fire.style.animation = 'nuke-ani 0.8s ease-out forwards';
-    document.getElementById('map-container').appendChild(fire);
-
-    // 3. 이미지 핵구름
-    const cloud = document.createElement('div');
-    cloud.className = 'nuke-image';
-    cloud.style.left = point.x + 'px';
-    cloud.style.top = point.y + 'px';
-    cloud.style.animation = 'nuke-ani 1s 0.1s ease-out forwards'; // 약간의 지연
-    document.getElementById('map-container').appendChild(cloud);
-
-    // 4. 안드로이드 진동 & 화면 흔들림
+    // 시각 효과: 섬광 + 흔들림
+    document.getElementById('flash').style.animation = 'flash-ani 0.5s ease-out';
     document.body.classList.add('screen-shake');
-    if(navigator.vibrate) navigator.vibrate([100, 50, 200, 50, 500]);
+    
+    // 안드로이드 진동
+    if(navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 800]);
 
+    // 폭파 완료 처리 (1.5초 뒤 - GIF 길이에 따라 조절)
     setTimeout(() => {
         document.body.classList.remove('screen-shake');
-        document.getElementById('map').style.filter = 'grayscale(1) brightness(0.2) contrast(2)';
-        marker.setMap(null);
-        alert("💥 타겟이 지도에서 제거되었습니다.");
-        // 파편 제거
-        setTimeout(() => { fire.remove(); cloud.remove(); }, 1000);
-    }, 1000);
+        document.getElementById('map').style.filter = 'grayscale(1) brightness(0.2) sepia(1) hue-rotate(-50deg)';
+        if(marker) marker.setMap(null);
+        
+        alert(`🚨 MISSION COMPLETE: ${selectedTarget.place_name} 파괴됨.`);
+        
+        // 다음 폭발을 위해 GIF 제거
+        setTimeout(() => gif.remove(), 500);
+    }, 1500);
 }
 </script>
+
 </body>
 </html>
